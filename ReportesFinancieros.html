@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Reportes Financieros | Sistema Escuela</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Font -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+  <!-- SheetJS (Exportar a Excel) -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <style>
+    body { font-family: 'Inter', sans-serif; }
+    @media print { .no-print { display:none !important; } }
+  </style>
+</head>
+<body class="bg-gray-100">
+  <div class="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8">
+    <header class="no-print mb-6">
+      <h1 class="text-3xl sm:text-4xl font-extrabold text-gray-800">Reportes Financieros — Avanzado</h1>
+      <p class="text-gray-600 mt-2">Ingresos (pagos) vs Gastos, métricas, filtros, gráficas y exportación.</p>
+    </header>
+
+    <!-- Panel de Filtros -->
+    <section class="no-print bg-white p-4 sm:p-6 rounded-2xl shadow-lg mb-6">
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
+        <div>
+          <label class="text-sm font-medium text-gray-700">Fecha inicio</label>
+          <input id="fStart" type="date" class="mt-1 w-full border-gray-300 rounded-lg" />
+        </div>
+        <div>
+          <label class="text-sm font-medium text-gray-700">Fecha fin</label>
+          <input id="fEnd" type="date" class="mt-1 w-full border-gray-300 rounded-lg" />
+        </div>
+        <div>
+          <label class="text-sm font-medium text-gray-700">Concepto ingreso</label>
+          <select id="fConcept" class="mt-1 w-full border-gray-300 rounded-lg">
+            <option value="">Todos</option>
+            <option value="Inscripcion">Inscripción</option>
+            <option value="Libros">Libros</option>
+            <option value="Uniformes">Uniformes</option>
+            <option value="Mensualidad">Mensualidad</option>
+            <option value="Otro">Otro</option>
+            <option value="Cancelacion">Cancelación</option>
+          </select>
+        </div>
+        <div class="flex items-end">
+          <label class="inline-flex items-center space-x-2">
+            <input id="fIncludeCancels" type="checkbox" class="rounded" />
+            <span class="text-sm text-gray-700">Incluir cancelaciones</span>
+          </label>
+        </div>
+        <div class="flex items-end">
+          <label class="inline-flex items-center space-x-2">
+            <input id="fIncludeExpenses" type="checkbox" class="rounded" checked />
+            <span class="text-sm text-gray-700">Incluir gastos</span>
+          </label>
+        </div>
+        <div class="flex items-end gap-2">
+          <button id="btnFilter" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg">Filtrar</button>
+        </div>
+      </div>
+      <div class="mt-4 flex flex-wrap gap-2">
+        <button id="btnToday" class="text-xs bg-gray-200 hover:bg-gray-300 text-gray-800 py-1 px-3 rounded-md">Hoy</button>
+        <button id="btnMonth" class="text-xs bg-gray-200 hover:bg-gray-300 text-gray-800 py-1 px-3 rounded-md">Este mes</button>
+        <button id="btnFY" class="text-xs bg-gray-200 hover:bg-gray-300 text-gray-800 py-1 px-3 rounded-md">Ciclo escolar</button>
+        <button id="btnClear" class="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 py-1 px-3 rounded-md">Limpiar</button>
+      </div>
+    </section>
+
+    <!-- KPIs -->
+    <section id="kpis" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4 mb-6">
+      <div class="bg-blue-100 rounded-xl p-5 shadow"><div class="text-blue-800 font-bold">Ingreso</div><div id="kIngreso" class="text-3xl font-extrabold text-blue-900 mt-1">$0.00</div></div>
+      <div class="bg-rose-100 rounded-xl p-5 shadow"><div class="text-rose-800 font-bold">Gastos</div><div id="kGasto" class="text-3xl font-extrabold text-rose-900 mt-1">$0.00</div></div>
+      <div class="bg-emerald-100 rounded-xl p-5 shadow"><div class="text-emerald-800 font-bold">Utilidad</div><div id="kUtilidad" class="text-3xl font-extrabold text-emerald-900 mt-1">$0.00</div></div>
+      <div class="bg-green-100 rounded-xl p-5 shadow"><div class="text-green-800 font-bold"># Pagos</div><div id="kPagos" class="text-3xl font-extrabold text-green-900 mt-1">0</div></div>
+      <div class="bg-yellow-100 rounded-xl p-5 shadow"><div class="text-yellow-800 font-bold">Promedio Pago</div><div id="kProm" class="text-3xl font-extrabold text-yellow-900 mt-1">$0.00</div></div>
+      <div class="bg-purple-100 rounded-xl p-5 shadow"><div class="text-purple-800 font-bold"># Cancelaciones</div><div id="kCanc" class="text-3xl font-extrabold text-purple-900 mt-1">0</div></div>
+    </section>
+
+    <!-- Gráficas -->
+    <section class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+      <div class="bg-white rounded-2xl p-4 sm:p-6 shadow">
+        <h3 class="font-semibold text-gray-800 mb-3">Ingresos por concepto</h3>
+        <canvas id="chartConcept"></canvas>
+      </div>
+      <div class="bg-white rounded-2xl p-4 sm:p-6 shadow lg:col-span-2">
+        <h3 class="font-semibold text-gray-800 mb-3">Ingresos vs Gastos por mes</h3>
+        <canvas id="chartMonthly"></canvas>
+      </div>
+      <div class="bg-white rounded-2xl p-4 sm:p-6 shadow lg:col-span-3">
+        <h3 class="font-semibold text-gray-800 mb-3">Flujo acumulado</h3>
+        <canvas id="chartCumulative"></canvas>
+      </div>
+    </section>
+
+    <!-- Tabla -->
+    <section class="bg-white rounded-2xl p-4 sm:p-6 shadow">
+      <div class="flex flex-wrap items-center justify-between gap-2 no-print mb-3">
+        <h3 class="font-semibold text-gray-800">Detalle de movimientos</h3>
+        <div class="flex gap-2">
+          <button id="btnExportCSV" class="bg-gray-700 hover:bg-gray-800 text-white text-sm py-2 px-3 rounded-lg">Exportar CSV</button>
+          <button id="btnExportXLSX" class="bg-gray-700 hover:bg-gray-800 text-white text-sm py-2 px-3 rounded-lg">Exportar Excel</button>
+          <button id="btnPrint" class="bg-gray-500 hover:bg-gray-600 text-white text-sm py-2 px-3 rounded-lg">Imprimir</button>
+        </div>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm text-left text-gray-600" id="tbl">
+          <thead class="text-xs uppercase bg-gray-50 text-gray-700">
+            <tr>
+              <th class="px-4 py-3">Fecha</th>
+              <th class="px-4 py-3">Tipo</th>
+              <th class="px-4 py-3">Alumno / Concepto</th>
+              <th class="px-4 py-3">Categoría</th>
+              <th class="px-4 py-3">Método</th>
+              <th class="px-4 py-3">Monto</th>
+            </tr>
+          </thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    // ======================== CONFIG ========================
+    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbw7VxioI8PXNSRgVcJAyFU59Magu9ZANgA1J698WW1-EV9yvcan1za-ndIX-LY77V-R/exec';
+
+    // ======================== ESTADO ========================
+    let rawPagos = [];
+    let rawGastos = [];
+    let filtered = []; // mezcla normalizada de ingresos y gastos
+
+    // ======================== UTILIDADES ========================
+    const fmtMoney = n => n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const toDate = (v) => v ? new Date(v) : null;
+    const sameMonthKey = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+
+    function normPagos(p){
+      // pagos: {paymentDate, studentName, paymentConcept, amount, mesPagado, paymentMethodGeneral}
+      return p.map(x=>({
+        tipo: x.paymentConcept === 'Cancelacion' ? 'cancelacion' : 'ingreso',
+        fecha: toDate(x.paymentDate),
+        alumnoConcepto: x.studentName || '',
+        categoria: x.paymentConcept || '',
+        metodo: x.paymentMethodGeneral || '',
+        monto: parseFloat(x.amount || 0)
+      })).filter(r=>r.fecha);
+    }
+
+    function normGastos(g){
+      // gastos: {date, concept, category, amount, paymentMethod}
+      return g.map(x=>({
+        tipo: 'gasto',
+        fecha: toDate(x.date),
+        alumnoConcepto: x.concept || '',
+        categoria: x.category || '',
+        metodo: x.paymentMethod || '',
+        monto: parseFloat(x.amount || 0)
+      })).filter(r=>r.fecha);
+    }
+
+    function setQuickRanges(){
+      const now = new Date();
+      const pad = n => String(n).padStart(2,'0');
+      // Hoy
+      document.getElementById('btnToday').addEventListener('click',()=>{
+        const d = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}`;
+        fStart.value = d; fEnd.value = d;
+      });
+      // Este mes
+      document.getElementById('btnMonth').addEventListener('click',()=>{
+        const start = new Date(now.getFullYear(), now.getMonth(), 1);
+        const end = new Date(now.getFullYear(), now.getMonth()+1, 0);
+        fStart.value = `${start.getFullYear()}-${pad(start.getMonth()+1)}-${pad(start.getDate())}`;
+        fEnd.value = `${end.getFullYear()}-${pad(end.getMonth()+1)}-${pad(end.getDate())}`;
+      });
+      // Ciclo escolar (ago-jul) aproximado
+      document.getElementById('btnFY').addEventListener('click',()=>{
+        let y = now.getFullYear();
+        const start = now.getMonth()+1 >= 8 ? new Date(y,7,1) : new Date(y-1,7,1); // 1 ago
+        const end   = new Date(start.getFullYear()+1,6,31); // 31 jul
+        const pad2=(d)=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+        fStart.value = pad2(start); fEnd.value = pad2(end);
+      });
+      document.getElementById('btnClear').addEventListener('click',()=>{ fStart.value=''; fEnd.value=''; fConcept.value=''; fIncludeCancels.checked=false; });
+    }
+
+    // ======================== CARGA ========================
+    async function fetchJSON(url){
+      const res = await fetch(url);
+      if(!res.ok) throw new Error(`HTTP ${res.status}`);
+      return await res.json();
+    }
+
+    async function loadAll(){
+      const [pagos, gastos] = await Promise.all([
+        fetchJSON(`${SCRIPT_URL}?module=pagos`),
+        fetchJSON(`${SCRIPT_URL}?module=gastos`)
+      ]);
+      rawPagos = Array.isArray(pagos) ? pagos : [];
+      rawGastos = Array.isArray(gastos) ? gastos : [];
+    }
+
+    // ======================== FILTRO ========================
+    function applyFilters(){
+      const start = fStart.value ? new Date(fStart.value) : null;
+      const end   = fEnd.value ? new Date(fEnd.value) : null;
+      const concept = fConcept.value;
+      const incCanc = fIncludeCancels.checked;
+      const incExp  = fIncludeExpenses.checked;
+
+      const ingresosYCancel = normPagos(rawPagos).filter(r=>{
+        if(!incCanc && r.tipo==='cancelacion') return false;
+        if(concept && r.categoria!==concept) return false;
+        if(start && r.fecha < start) return false;
+        if(end && r.fecha > new Date(end.getFullYear(), end.getMonth(), end.getDate(), 23,59,59)) return false;
+        return true;
+      });
+
+      const gastos = incExp ? normGastos(rawGastos).filter(r=>{
+        if(start && r.fecha < start) return false;
+        if(end && r.fecha > new Date(end.getFullYear(), end.getMonth(), end.getDate(), 23,59,59)) return false;
+        return true;
+      }) : [];
+
+      filtered = [...ingresosYCancel, ...gastos].sort((a,b)=>a.fecha-b.fecha);
+      renderKPIs();
+      renderTable();
+      renderCharts();
+    }
+
+    // ======================== RENDER: KPIs ========================
+    function renderKPIs(){
+      let ingreso=0, gastos=0, pagos=0, canc=0;
+      for(const r of filtered){
+        if(r.tipo==='ingreso'){ ingreso += r.monto; pagos++; }
+        if(r.tipo==='gasto'){ gastos += r.monto; }
+        if(r.tipo==='cancelacion'){ canc++; }
+      }
+      const utilidad = ingreso - gastos;
+      const prom = pagos>0 ? ingreso/pagos : 0;
+      kIngreso.textContent = `$${fmtMoney(ingreso)}`;
+      kGasto.textContent   = `$${fmtMoney(gastos)}`;
+      kUtilidad.textContent= `$${fmtMoney(utilidad)}`;
+      kPagos.textContent   = pagos;
+      kProm.textContent    = `$${fmtMoney(prom)}`;
+      kCanc.textContent    = canc;
+    }
+
+    // ======================== RENDER: TABLA ========================
+    function renderTable(){
+      const tbody = document.getElementById('tbody');
+      tbody.innerHTML = '';
+      for(const r of filtered){
+        const tr = document.createElement('tr');
+        tr.className = 'border-b';
+        const f = r.fecha.toLocaleDateString('es-MX');
+        const tipoLbl = r.tipo==='ingreso' ? 'Ingreso' : (r.tipo==='gasto' ? 'Gasto' : 'Cancelación');
+        const montoCls = r.tipo==='gasto' || r.tipo==='cancelacion' ? 'text-rose-600 font-bold' : 'text-emerald-700 font-bold';
+        tr.innerHTML = `
+          <td class="px-4 py-3">${f}</td>
+          <td class="px-4 py-3">${tipoLbl}</td>
+          <td class="px-4 py-3">${r.alumnoConcepto}</td>
+          <td class="px-4 py-3">${r.categoria}</td>
+          <td class="px-4 py-3">${r.metodo}</td>
+          <td class="px-4 py-3 ${montoCls}">${r.tipo==='gasto'||r.tipo==='cancelacion'?'-':''}$${fmtMoney(r.monto)}</td>`;
+        tbody.appendChild(tr);
+      }
+    }
+
+    // ======================== RENDER: CHARTS ========================
+    let chartConcept, chartMonthly, chartCum;
+
+    function destroyCharts(){
+      [chartConcept, chartMonthly, chartCum].forEach(c=>{ if(c){ c.destroy(); }});
+    }
+
+    function renderCharts(){
+      destroyCharts();
+      // 1) Donut conceptos (solo ingresos)
+      const ingresos = filtered.filter(r=>r.tipo==='ingreso');
+      const byConcept = {};
+      for(const r of ingresos){ byConcept[r.categoria] = (byConcept[r.categoria]||0) + r.monto; }
+      const conceptLabels = Object.keys(byConcept);
+      const conceptValues = Object.values(byConcept);
+      chartConcept = new Chart(document.getElementById('chartConcept'), {
+        type: 'doughnut',
+        data: { labels: conceptLabels, datasets: [{ data: conceptValues }] },
+        options: { plugins: { legend: { position: 'bottom' } } }
+      });
+
+      // 2) Barras Ingresos vs Gastos por mes
+      const byMonthIn = {}, byMonthOut = {};
+      for(const r of filtered){
+        const k = sameMonthKey(r.fecha);
+        if(r.tipo==='ingreso') byMonthIn[k] = (byMonthIn[k]||0)+r.monto;
+        if(r.tipo==='gasto')   byMonthOut[k]= (byMonthOut[k]||0)+r.monto;
+      }
+      const months = Array.from(new Set([...Object.keys(byMonthIn), ...Object.keys(byMonthOut)])).sort();
+      const inVals = months.map(m=>byMonthIn[m]||0);
+      const outVals= months.map(m=>byMonthOut[m]||0);
+      chartMonthly = new Chart(document.getElementById('chartMonthly'), {
+        type: 'bar',
+        data: { labels: months, datasets: [
+          { label: 'Ingresos', data: inVals },
+          { label: 'Gastos', data: outVals }
+        ]},
+        options: { responsive:true, plugins:{ legend:{ position:'bottom' } }, scales: { y: { beginAtZero:true } } }
+      });
+
+      // 3) Línea flujo acumulado (ingresos - gastos - cancelaciones no suman)
+      // Nota: tratamos cancelación como 0 en el flujo (solo afecta conteo),
+      // si deseas que reste, cambia a: r.tipo==='cancelacion' ? -r.monto : (ingreso - gasto)
+      const byDay = {};
+      for(const r of filtered){
+        if(r.tipo==='ingreso' || r.tipo==='gasto'){
+          const d = r.fecha.toISOString().split('T')[0];
+          byDay[d] = (byDay[d]||0) + (r.tipo==='ingreso' ? r.monto : -r.monto);
+        }
+      }
+      const days = Object.keys(byDay).sort();
+      const cum = [];
+      let acc = 0;
+      for(const d of days){ acc += byDay[d]; cum.push(acc); }
+      chartCum = new Chart(document.getElementById('chartCumulative'), {
+        type: 'line',
+        data: { labels: days, datasets: [{ label: 'Flujo acumulado', data: cum, fill:false }] },
+        options: { responsive:true, plugins:{ legend:{ position:'bottom' } }, scales:{ y:{ beginAtZero:false } } }
+      });
+    }
+
+    // ======================== EXPORT ========================
+    function exportCSV(){
+      const rows = [['Fecha','Tipo','Alumno/Concepto','Categoría','Método','Monto']];
+      for(const r of filtered){
+        rows.push([
+          r.fecha.toISOString().split('T')[0],
+          r.tipo,
+          r.alumnoConcepto,
+          r.categoria,
+          r.metodo,
+          (r.tipo==='gasto'||r.tipo==='cancelacion'?'-':'') + r.monto.toFixed(2)
+        ]);
+      }
+      const csv = rows.map(r=>r.map(v=>`"${String(v).replaceAll('"','""')}"`).join(',')).join('\n');
+      const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = 'reporte_financiero.csv'; a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    function exportXLSX(){
+      const data = [['Fecha','Tipo','Alumno/Concepto','Categoría','Método','Monto']];
+      for(const r of filtered){
+        data.push([
+          r.fecha,
+          r.tipo,
+          r.alumnoConcepto,
+          r.categoria,
+          r.metodo,
+          r.tipo==='gasto'||r.tipo==='cancelacion'? -r.monto : r.monto
+        ]);
+      }
+      const ws = XLSX.utils.aoa_to_sheet(data);
+      // formato simple para la fecha
+      const range = XLSX.utils.decode_range(ws['!ref']);
+      for(let R=1; R<=range.e.r; R++){
+        const cell = ws[XLSX.utils.encode_cell({r:R,c:0})];
+        if(cell){ cell.z = 'yyyy-mm-dd'; }
+      }
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Reporte');
+      XLSX.writeFile(wb, 'reporte_financiero.xlsx');
+    }
+
+    // ======================== EVENTOS UI ========================
+    const fStart = document.getElementById('fStart');
+    const fEnd = document.getElementById('fEnd');
+    const fConcept = document.getElementById('fConcept');
+    const fIncludeCancels = document.getElementById('fIncludeCancels');
+    const fIncludeExpenses = document.getElementById('fIncludeExpenses');
+
+    document.getElementById('btnFilter').addEventListener('click', applyFilters);
+    document.getElementById('btnPrint').addEventListener('click', ()=> window.print());
+    document.getElementById('btnExportCSV').addEventListener('click', exportCSV);
+    document.getElementById('btnExportXLSX').addEventListener('click', exportXLSX);
+
+    setQuickRanges();
+
+    // ======================== INIT ========================
+    (async () => {
+      try {
+        await loadAll();
+        applyFilters();
+      } catch (e) {
+        alert('Error cargando datos: '+ e.message);
+      }
+    })();
+  </script>
+</body>
+</html>

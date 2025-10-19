@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Módulo de Pagos — Sistema Escuela</title>
+  <!-- Tailwind CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Inter font -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <!-- jsPDF + html2canvas -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <style>
+    :root { --brand:#1e40af }
+    body { font-family: 'Inter', system-ui, -apple-system, Segoe UI, Roboto, 'Helvetica Neue', Arial, 'Noto Sans', 'Apple Color Emoji', 'Segoe UI Emoji'; }
+    .spinner{border:2px solid rgba(0,0,0,.1);border-left-color:white;border-radius:50%;width:1rem;height:1rem;animation:spin 1s linear infinite}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    .modal{transition:opacity .2s ease}
+    .modal-inactive{opacity:0;pointer-events:none}
+    #testResults details summary{cursor:pointer}
+  </style>
+</head>
+<body class="bg-gray-100">
+  <main class="container mx-auto p-4 sm:p-6 lg:p-8 max-w-5xl">
+    <section class="bg-white rounded-2xl shadow-xl p-6 sm:p-8">
+      <header class="mb-8 text-center">
+        <h1 class="text-3xl sm:text-4xl font-extrabold tracking-tight text-gray-900">Módulo de Pagos</h1>
+        <p class="mt-2 text-gray-600">Registra pagos de alumnos, mensualidades, eventos y genera recibo PDF.</p>
+      </header>
+
+      <!-- Barra superior: alumno + total -->
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
+        <div class="lg:col-span-2">
+          <label class="text-sm font-medium text-gray-700">Alumno</label>
+          <div class="relative mt-1">
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <input id="alNombre" class="px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-600" placeholder="Nombre(s)"/>
+              <input id="alPaterno" class="px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-600" placeholder="Apellido paterno"/>
+              <input id="alMaterno" class="px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-600" placeholder="Apellido materno (opcional)"/>
+            </div>
+            <div id="autocomplete" class="absolute top-full left-0 right-0 bg-white border rounded-md shadow-lg mt-1 hidden z-10"></div>
+          </div>
+        </div>
+        <div class="bg-blue-50 rounded-xl p-4 flex items-center justify-between">
+          <div>
+            <p class="text-sm text-blue-800">Total del recibo</p>
+            <p id="totalLabel" class="text-3xl font-extrabold text-blue-900">$0.00</p>
+          </div>
+          <button id="btnGenerarPDF" class="px-4 py-2 rounded-lg bg-purple-600 text-white font-semibold shadow hover:bg-purple-700 disabled:bg-gray-400" disabled>Recibo PDF</button>
+        </div>
+      </div>
+
+      <!-- Concepto principal -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <div>
+          <label class="text-sm font-medium text-gray-700">Concepto principal</label>
+          <select id="concepto" class="mt-1 w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-600">
+            <option value="">Seleccione…</option>
+            <option value="Inicial">Pago inicial (con desglose)</option>
+            <option value="Mensualidad">Mensualidad</option>
+            <option value="TransporteEscolar">Transporte escolar</option>
+            <option value="Evento">Evento</option>
+            <option value="Otro">Otro concepto</option>
+            <option value="Cancelacion">Cancelación</option>
+          </select>
+        </div>
+        <div>
+          <label class="text-sm font-medium text-gray-700">Fecha de pago</label>
+          <input id="fechaPago" type="date" class="mt-1 w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-600"/>
+        </div>
+        <div>
+          <label class="text-sm font-medium text-gray-700">Método de pago</label>
+          <select id="metodoGeneral" class="mt-1 w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-600">
+            <option value="">Seleccione…</option>
+            <option>Efectivo</option>
+            <option>BBVA</option>
+            <option>Banorte</option>
+            <option>Tarjeta</option>
+            <option>Transferencia</option>
+            <option>Cheque</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Desglose para Pago Inicial -->
+      <div id="desgloseInicial" class="hidden border rounded-xl p-4">
+        <h3 class="font-bold text-gray-800 mb-3">Desglose del pago inicial</h3>
+        <p class="text-sm text-gray-500 mb-4">Activa los conceptos aplicables y captura los importes y métodos.</p>
+        <div class="space-y-3" id="itemsInicial"></div>
+      </div>
+
+      <!-- Campos dinámicos: mensualidad -->
+      <div id="campoMes" class="hidden mt-6">
+        <label class="text-sm font-medium text-gray-700">Mes pagado</label>
+        <select id="mesPagado" class="mt-1 w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-600">
+          <option value="">Seleccione mes…</option>
+          <option>Septiembre</option><option>Octubre</option><option>Noviembre</option><option>Diciembre</option>
+          <option>Enero</option><option>Febrero</option><option>Marzo</option><option>Abril</option>
+          <option>Mayo</option><option>Junio</option><option>Julio</option>
+        </select>
+      </div>
+
+      <!-- Campos dinámicos: evento -->
+      <div id="campoEvento" class="hidden mt-6">
+        <label class="text-sm font-medium text-gray-700">Tipo de evento</label>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mt-1">
+          <select id="eventoTipo" class="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-600">
+            <option value="">Seleccione evento…</option>
+            <option>Día de Muertos</option>
+            <option>Día de San Valentín</option>
+            <option>Día del Niño</option>
+            <option>Renta de Togas y Birretes</option>
+            <option>Fotografía</option>
+            <option>Graduación</option>
+            <option>Otro</option>
+          </select>
+          <input id="eventoOtro" class="md:col-span-2 w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-600 hidden" placeholder="Especifica el evento"/>
+        </div>
+      </div>
+
+      <!-- Monto manual (para Mensualidad / Transporte escolar / Evento / Otro / Cancelación) -->
+      <div id="montoManualWrap" class="mt-6 hidden">
+        <label class="text-sm font-medium text-gray-700">Monto</label>
+        <input id="montoManual" type="number" step="0.01" min="0" class="mt-1 w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-600" placeholder="0.00"/>
+      </div>
+
+      <!-- Cancelación -->
+      <div id="campoCancelacion" class="hidden mt-6">
+        <label class="text-sm font-medium text-gray-700">Referencia/recibo a cancelar</label>
+        <input id="refCancelacion" class="mt-1 w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-600" placeholder="Ej. REC-2025-00123"/>
+      </div>
+
+      <!-- Botones -->
+      <div class="flex flex-col sm:flex-row gap-3 justify-end mt-8">
+        <button id="btnEnviar" class="px-6 py-3 rounded-lg bg-blue-600 text-white font-semibold shadow hover:bg-blue-700 flex items-center justify-center">
+          <span class="mr-2">Registrar pago</span>
+          <span id="spinEnviar" class="spinner hidden"></span>
+        </button>
+        <button id="btnLimpiar" class="px-6 py-3 rounded-lg bg-gray-200 text-gray-800 font-semibold shadow hover:bg-gray-300">Limpiar</button>
+      </div>
+
+      <!-- Tabla de items (vista previa del recibo) -->
+      <div class="mt-10">
+        <h3 class="text-lg font-semibold text-gray-800">Detalle del recibo</h3>
+        <div class="mt-3 overflow-x-auto bg-white border rounded-xl">
+          <table class="min-w-full text-sm">
+            <thead class="bg-gray-50 text-gray-600 uppercase text-xs">
+              <tr>
+                <th class="px-4 py-3 text-left">Concepto</th>
+                <th class="px-4 py-3 text-left">Mes</th>
+                <th class="px-4 py-3 text-left">Método</th>
+                <th class="px-4 py-3 text-right">Importe</th>
+                <th class="px-4 py-3"></th>
+              </tr>
+            </thead>
+            <tbody id="tbodyItems"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- Simple test output -->
+    <div id="testResults" class="mt-6 text-sm text-gray-600">
+      <details>
+        <summary>Resultados de pruebas (click para ver)</summary>
+        <ul id="testList" class="list-disc pl-6"></ul>
+      </details>
+    </div>
+  </main>
+
+  <!-- Modal simple -->
+  <div id="modalMsg" class="fixed inset-0 bg-black/40 modal modal-inactive flex items-center justify-center p-4 z-50">
+    <div class="bg-white rounded-xl p-6 max-w-sm w-full text-center">
+      <div id="modalIcon" class="mb-2"></div>
+      <h3 id="modalTitle" class="text-xl font-bold"></h3>
+      <p id="modalText" class="text-gray-600 mt-2"></p>
+      <button id="modalClose" class="mt-5 w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Cerrar</button>
+    </div>
+  </div>
+
+  <script>
+    // ================================
+    // CONFIG / ESTADO
+    // ================================
+    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbw7VxioI8PXNSRgVcJAyFU59Magu9ZANgA1J698WW1-EV9yvcan1za-ndIX-LY77V-R/exec';
+
+    const conceptosInicial = [
+      { key:'Inscripción', method:true },
+      { key:'Libros', method:true },
+      { key:'Uniformes', method:true },
+      { key:'Credencial', method:true },
+      { key:'Agenda', method:true },
+      { key:'Cuadernos', method:true },
+      { key:'Seguro', method:true },
+    ];
+
+    const alumnosCache = [];
+    let itemsRecibo = [];
+    let lastPayload = null;
+
+    // ================================
+    // HELPERS UI
+    // ================================
+    const $ = (s)=>document.querySelector(s);
+    const $$ = (s)=>Array.from(document.querySelectorAll(s));
+    const fmtMoney = v => (isNaN(+v)?0:+v).toLocaleString('es-MX',{minimumFractionDigits:2, maximumFractionDigits:2});
+
+    function showModal(type, title, text){
+      const icon = type==='ok'
+        ? '<svg class="mx-auto h-12 w-12 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>'
+        : '<svg class="mx-auto h-12 w-12 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>';
+      $('#modalIcon').innerHTML = icon;
+      $('#modalTitle').textContent = title;
+      $('#modalText').textContent = text;
+      $('#modalMsg').classList.remove('modal-inactive');
+    }
+    $('#modalClose').addEventListener('click',()=>$('#modalMsg').classList.add('modal-inactive'));
+
+    function nombreCompleto(){
+      return [$('#alNombre').value,$('#alPaterno').value,$('#alMaterno').value].join(' ').replace(/\s+/g,' ').trim();
+    }
+
+    function renderTotal(){
+      const total = itemsRecibo.reduce((a,i)=>a + (+i.amount||0),0);
+      $('#totalLabel').textContent = `$${fmtMoney(total)}`;
+      $('#btnGenerarPDF').disabled = total <= 0 || !nombreCompleto();
+    }
+
+    function renderItems(){
+      const tbody = $('#tbodyItems');
+      tbody.innerHTML = '';
+      itemsRecibo.forEach((it,idx)=>{
+        const tr = document.createElement('tr');
+        tr.className = 'border-b';
+        tr.innerHTML = `
+          <td class="px-4 py-3">${it.paymentConcept}</td>
+          <td class="px-4 py-3">${it.mesPagado||''}</td>
+          <td class="px-4 py-3">${it.paymentMethodGeneral||''}</td>
+          <td class="px-4 py-3 text-right font-semibold">$${fmtMoney(it.amount)}</td>
+          <td class="px-4 py-3 text-right"><button class="text-red-600 hover:underline" data-del="${idx}">Eliminar</button></td>`;
+        tbody.appendChild(tr);
+      });
+      tbody.addEventListener('click', (e)=>{
+        if(e.target.matches('button[data-del]')){
+          const idx = +e.target.getAttribute('data-del');
+          itemsRecibo.splice(idx,1);
+          renderItems();
+          renderTotal();
+        }
+      }, { once:true });
+      renderTotal();
+    }
+
+    function pushItem({concept, month='', method='', amount=0}){
+      const row = {paymentConcept:concept, mesPagado:month, paymentMethodGeneral:method, amount:+amount};
+      itemsRecibo.push(row); renderItems();
+    }
+
+    // ================================
+    // AUTOCOMPLETE ALUMNOS (opcional)
+    // ================================
+    async function ensureAlumnos(){
+      if(alumnosCache.length) return;
+      try{
+        const r = await fetch(`${SCRIPT_URL}?module=alumnos`);
+        const data = await r.json();
+        if(Array.isArray(data)) alumnosCache.push(...data);
+      }catch(e){ /* ignora si no hay backend */ }
+    }
+    function filterAlumnos(){
+      const q = nombreCompleto().toLowerCase();
+      const list = $('#autocomplete'); list.innerHTML = '';
+      if(!q){ list.classList.add('hidden'); return; }
+      const matches = alumnosCache.filter(a=>{
+        const full = `${a.nombres||''} ${a.apellidoPaterno||''} ${a.apellidoMaterno||''}`.toLowerCase();
+        return full.includes(q);
+      }).slice(0,8);
+      if(!matches.length){ list.classList.add('hidden'); return; }
+      list.classList.remove('hidden');
+      matches.forEach(a=>{
+        const full = `${a.nombres||''} ${a.apellidoPaterno||''} ${a.apellidoMaterno||''}`.replace(/\s+/g,' ').trim();
+        const div = document.createElement('div');
+        div.className = 'px-3 py-2 hover:bg-gray-100 cursor-pointer';
+        div.textContent = full;
+        div.addEventListener('click',()=>{
+          const parts = full.split(' ');
+          $('#alNombre').value = parts.slice(0, parts.length-2).join(' ') || parts[0] || '';
+          $('#alPaterno').value = parts[parts.length-2] || '';
+          $('#alMaterno').value = parts[parts.length-1] || '';
+          list.classList.add('hidden');
+          renderTotal();
+        });
+        list.appendChild(div);
+      });
+    }
+    ['#alNombre','#alPaterno','#alMaterno'].forEach(sel=>{
+      $(sel).addEventListener('focus', ensureAlumnos);
+      $(sel).addEventListener('input', filterAlumnos);
+    });
+    document.addEventListener('click', (e)=>{ if(!e.target.closest('#autocomplete')) $('#autocomplete').classList.add('hidden') });
+
+    // ================================
+    // TOGGLES POR CONCEPTO
+    // ================================
+    function setToday(){ $('#fechaPago').valueAsDate = new Date(); }
+    function resetDynamic(){
+      $('#desgloseInicial').classList.add('hidden');
+      $('#campoMes').classList.add('hidden');
+      $('#campoEvento').classList.add('hidden');
+      $('#campoCancelacion').classList.add('hidden');
+      $('#montoManualWrap').classList.add('hidden');
+      itemsRecibo = []; renderItems();
+      renderTotal();
+    }
+
+    function buildDesgloseInicial(){
+      const wrap = $('#itemsInicial'); wrap.innerHTML = '';
+      conceptosInicial.forEach(c=>{
+        const row = document.createElement('div');
+        row.className = 'grid grid-cols-1 sm:grid-cols-12 gap-3 items-center p-3 bg-gray-50 rounded-lg';
+        row.innerHTML = `
+          <div class=\"sm:col-span-4 flex items-center\">
+            <input type=\"checkbox\" class=\"h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-600\"/>
+            <span class=\"ml-3 font-medium\">${c.key}</span>
+          </div>
+          <div class=\"sm:col-span-4\">
+            <input type=\"number\" step=\"0.01\" min=\"0\" class=\"w-full px-2 py-2 border rounded-md disabled:bg-gray-200\" disabled placeholder=\"Monto\"/>
+          </div>
+          <div class=\"sm:col-span-4\">
+            <select class=\"w-full px-2 py-2 border rounded-md disabled:bg-gray-200\" disabled>
+              <option value=\"\">Método…</option>
+              <option>Efectivo</option>
+              <option>BBVA</option>
+              <option>Banorte</option>
+              <option>Tarjeta</option>
+              <option>Transferencia</option>
+              <option>Cheque</option>
+            </select>
+          </div>`;
+        const [cb, inp, sel] = [row.querySelector('input[type="checkbox"]'), row.querySelector('input[type="number"]'), row.querySelector('select')];
+        cb.addEventListener('change',()=>{ inp.disabled = sel.disabled = !cb.checked; if(!cb.checked){ inp.value=''; sel.value=''; } recalcFromInicial(); });
+        inp.addEventListener('input', recalcFromInicial);
+        sel.addEventListener('change', recalcFromInicial);
+        row.dataset.concept = c.key;
+        wrap.appendChild(row);
+      });
+    }
+
+    function recalcFromInicial(){
+      itemsRecibo = [];
+      $$('#itemsInicial > div').forEach(row=>{
+        const cb = row.querySelector('input[type="checkbox"]');
+        const amt = parseFloat(row.querySelector('input[type="number"]').value||'0');
+        const met = row.querySelector('select').value;
+        if(cb.checked && amt>0){ pushItem({concept:row.dataset.concept, method:met, amount:amt}); }
+      });
+      renderItems();
+    }
+
+    $('#concepto').addEventListener('change', e=>{
+      resetDynamic();
+      const val = e.target.value;
+      if(val==='Inicial'){
+        $('#desgloseInicial').classList.remove('hidden');
+        buildDesgloseInicial();
+      } else if(val==='Mensualidad'){
+        $('#campoMes').classList.remove('hidden');
+        $('#montoManualWrap').classList.remove('hidden');
+        $('#metodoGeneral').value = '';
+      } else if(val==='TransporteEscolar'){
+        $('#campoMes').classList.remove('hidden');
+        $('#montoManualWrap').classList.remove('hidden');
+        $('#metodoGeneral').value = '';
+      } else if(val==='Evento'){
+        $('#campoEvento').classList.remove('hidden');
+        $('#montoManualWrap').classList.remove('hidden');
+        $('#metodoGeneral').value = '';
+      } else if(val==='Otro'){
+        $('#montoManualWrap').classList.remove('hidden');
+      } else if(val==='Cancelacion'){
+        $('#campoCancelacion').classList.remove('hidden');
+        $('#montoManualWrap').classList.remove('hidden');
+      }
+    });
+
+    // Evento: mostrar input "otro"
+    $('#eventoTipo').addEventListener('change', ()=>{
+      const isOtro = $('#eventoTipo').value==='Otro';
+      $('#eventoOtro').classList.toggle('hidden', !isOtro);
+      recomputeSingleItem();
+    });
+    $('#eventoOtro').addEventListener('input', recomputeSingleItem);
+
+    // Campos que recalculan item único
+    ['#montoManual','#mesPagado','#metodoGeneral'].forEach(sel=>{
+      $(sel).addEventListener('input', recomputeSingleItem);
+      $(sel).addEventListener('change', recomputeSingleItem);
+    });
+
+    function recomputeSingleItem(){
+      const c = $('#concepto').value; if(!c || c==='Inicial') return;
+      const amt = parseFloat($('#montoManual').value||'0');
+      const met = $('#metodoGeneral').value||'';
+      let mes = '';
+      let conceptName = c;
+
+      if(c==='Mensualidad'){
+        mes = $('#mesPagado').value||'';
+        conceptName = 'Mensualidad';
+      } else if(c==='TransporteEscolar'){
+        mes = $('#mesPagado').value||'';
+        conceptName = 'Transporte escolar';
+      } else if(c==='Evento'){
+        const evt = $('#eventoTipo').value||'';
+        conceptName = evt==='Otro' ? ($('#eventoOtro').value||'Evento (otro)') : (evt||'Evento');
+      }
+
+      itemsRecibo = [];
+      if(amt>0) pushItem({concept:conceptName, month:mes, method:met, amount:amt});
+      renderItems();
+    }
+
+    // ================================
+    // ENVÍO (Apps Script compatible) + PDF
+    // ================================
+    function validateBeforeSend(){
+      const nombre = nombreCompleto();
+      if(!nombre) return 'Captura el nombre completo del alumno.';
+      if(!$('#fechaPago').value) return 'Selecciona la fecha de pago.';
+      const concepto = $('#concepto').value;
+      if(!concepto) return 'Selecciona un concepto principal.';
+      if(concepto==='Mensualidad' && !$('#mesPagado').value) return 'Selecciona el mes pagado.';
+      if(concepto==='TransporteEscolar' && !$('#mesPagado').value) return 'Selecciona el mes pagado para Transporte escolar.';
+      if(concepto==='Evento'){
+        if(!$('#eventoTipo').value) return 'Selecciona el tipo de evento.';
+        if($('#eventoTipo').value==='Otro' && !$('#eventoOtro').value.trim()) return 'Especifica el nombre del evento (Otro).';
+      }
+      if(concepto==='Cancelacion' && !$('#refCancelacion').value) return 'Indica la referencia a cancelar.';
+      if(itemsRecibo.length===0) return 'Agrega al menos un concepto con importe.';
+      return '';
+    }
+
+    $('#btnEnviar').addEventListener('click', async ()=>{
+      const err = validateBeforeSend();
+      if(err){ showModal('err','Error de validación',err); return; }
+
+      const btn=$('#btnEnviar'), sp=$('#spinEnviar');
+      btn.disabled = true; sp.classList.remove('hidden');
+
+      const payload = new FormData();
+      payload.append('module','pagos');
+      payload.append('studentName', nombreCompleto());
+      payload.append('paymentDate', $('#fechaPago').value);
+      payload.append('items', JSON.stringify(itemsRecibo));
+      if($('#concepto').value==='Cancelacion') payload.append('cancellationReference',$('#refCancelacion').value);
+
+      lastPayload = Object.fromEntries(payload.entries());
+
+      try{
+        const res = await fetch(SCRIPT_URL, { method:'POST', body:payload });
+        const text = await res.text();
+        const data = JSON.parse(text);
+        if(data.result==='success'){
+          showModal('ok','¡Pago registrado!','Se guardó correctamente en tu Google Sheet.');
+          $('#btnGenerarPDF').disabled = false;
+        }else{
+          throw new Error(data.message||'Error del script.');
+        }
+      }catch(e){
+        showModal('err','No se pudo registrar', e.message);
+      }finally{ btn.disabled=false; sp.classList.add('hidden'); }
+    });
+
+    $('#btnLimpiar').addEventListener('click', ()=>{
+      ['#alNombre','#alPaterno','#alMaterno','#montoManual','#mesPagado','#metodoGeneral','#refCancelacion','#eventoOtro'].forEach(sel=>$(sel).value='');
+      $('#eventoTipo').value='';
+      $('#concepto').value=''; itemsRecibo=[]; renderItems(); renderTotal();
+      $('#campoEvento').classList.add('hidden'); $('#eventoOtro').classList.add('hidden');
+      setToday();
+    });
+
+    $('#btnGenerarPDF').addEventListener('click', ()=>{
+      if(!lastPayload){ showModal('err','Sin datos','Registra primero un pago.'); return; }
+      const { jsPDF } = window.jspdf; const doc = new jsPDF();
+      const now = new Date();
+      const recNo = `REC-${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}-${Date.now().toString().slice(-6)}`;
+
+      doc.setFont('helvetica','bold'); doc.setFontSize(16);
+      doc.text('COLEGIO RENÉ DESCARTES', 105, 18, {align:'center'});
+      doc.setFont('helvetica',''); doc.setFontSize(10);
+      doc.text('RFC: XXX000000XX0  |  Av. Ejemplo 123, Ciudad de México', 105, 24, {align:'center'});
+      doc.line(20, 28, 190, 28);
+
+      doc.setFont('helvetica','bold'); doc.setFontSize(14);
+      doc.text('RECIBO DE PAGO', 20, 40);
+      doc.setFontSize(10); doc.setFont('helvetica','');
+      doc.text(`No.: ${recNo}`, 190, 34, {align:'right'});
+      doc.text(`Fecha: ${new Date(lastPayload.paymentDate).toLocaleDateString('es-MX',{timeZone:'UTC'})}`, 190, 40, {align:'right'});
+      doc.text('Alumno:', 20, 48); doc.text(lastPayload.studentName, 45, 48);
+
+      let y = 58; let total = 0;
+      doc.setFont('helvetica','bold');
+      doc.text('Concepto', 20, y); doc.text('Mes', 95, y); doc.text('Método', 130, y); doc.text('Importe', 190, y, {align:'right'});
+      y += 4; doc.setLineWidth(.2); doc.line(20, y, 190, y); y += 6;
+      doc.setFont('helvetica','');
+      JSON.parse(lastPayload.items).forEach(it=>{
+        doc.text(String(it.paymentConcept||''), 20, y);
+        doc.text(String(it.mesPagado||''), 95, y);
+        doc.text(String(it.paymentMethodGeneral||''), 130, y);
+        const amt = parseFloat(it.amount||0); total += amt;
+        doc.text(`$${amt.toFixed(2)}`, 190, y, {align:'right'}); y += 6;
+      });
+
+      y += 2; doc.line(20, y, 190, y); y += 8;
+      doc.setFont('helvetica','bold'); doc.text('TOTAL:', 130, y); doc.text(`$${total.toFixed(2)}`, 190, y, {align:'right'});
+
+      y += 24; doc.line(60, y, 150, y);
+      doc.setFont('helvetica',''); doc.text('Firma de recibido', 105, y+6, {align:'center'});
+
+      doc.save(`Recibo_${lastPayload.studentName.replace(/\s+/g,'_')}_${recNo}.pdf`);
+    });
+
+    // ================================
+    // PRUEBAS BÁSICAS (no cambian funcionalidad)
+    // ================================
+    function runTests(){
+      const tests = [];
+      function assert(name, cond){ tests.push({name, ok: !!cond}); }
+
+      try{
+        // Test 1: Mensualidad agrega item con mes
+        $('#concepto').value = 'Mensualidad';
+        $('#mesPagado').value = 'Octubre';
+        $('#montoManual').value = '1500';
+        $('#metodoGeneral').value = 'Efectivo';
+        recomputeSingleItem();
+        assert('Mensualidad crea item con mes', itemsRecibo.length===1 && itemsRecibo[0].paymentConcept==='Mensualidad' && itemsRecibo[0].mesPagado==='Octubre');
+
+        // Test 2: Transporte escolar similar a Mensualidad
+        $('#concepto').value = 'TransporteEscolar';
+        $('#mesPagado').value = 'Noviembre';
+        $('#montoManual').value = '900';
+        $('#metodoGeneral').value = 'Transferencia';
+        recomputeSingleItem();
+        assert('Transporte escolar crea item con mes', itemsRecibo.length===1 && itemsRecibo[0].paymentConcept==='Transporte escolar' && itemsRecibo[0].mesPagado==='Noviembre');
+
+        // Test 3: Evento "Otro" usa texto libre
+        $('#concepto').value = 'Evento';
+        $('#eventoTipo').value = 'Otro';
+        $('#eventoOtro').value = 'Festival escolar';
+        $('#montoManual').value = '200';
+        $('#metodoGeneral').value = 'Tarjeta';
+        recomputeSingleItem();
+        assert('Evento Otro usa texto libre', itemsRecibo.length===1 && itemsRecibo[0].paymentConcept==='Festival escolar');
+
+        // Test 4: Validación de mes requerido en Mensualidad
+        $('#concepto').value = 'Mensualidad';
+        $('#mesPagado').value = '';
+        const err = validateBeforeSend();
+        assert('Valida mes requerido (Mensualidad)', err && err.includes('mes pagado'));
+      } catch(e){
+        console.error('Error en pruebas:', e);
+      }
+
+      const list = document.getElementById('testList');
+      list.innerHTML = '';
+      tests.forEach(t=>{
+        const li = document.createElement('li');
+        li.textContent = `${t.ok ? '✅' : '❌'} ${t.name}`;
+        list.appendChild(li);
+      });
+    }
+
+    // INIT
+    function init(){ setToday(); runTests(); }
+    init();
+  </script>
+</body>
+</html>

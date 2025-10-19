@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Interfaz Principal — Sistema Escuela</title>
+  <!-- TailwindCSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Inter font -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root { --brand:#1e40af; }
+    html, body { height: 100%; }
+    body { font-family: 'Inter', system-ui, -apple-system, Segoe UI, Roboto, 'Helvetica Neue', Arial; }
+    .spin { border: 3px solid rgba(0,0,0,.08); border-left-color: #fff; width: 22px; height: 22px; border-radius: 9999px; animation: s 1s linear infinite; }
+    @keyframes s { to { transform: rotate(360deg); } }
+    .nav-btn[aria-current="page"] { background: rgba(30,64,175,.1); color:#1e40af; font-weight:700; }
+  </style>
+</head>
+<body class="bg-gray-100">
+  <!-- Topbar -->
+  <header id="topbar" class="bg-white/90 backdrop-blur sticky top-0 z-40 border-b border-gray-200">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="h-9 w-9 grid place-items-center rounded-xl bg-blue-600 text-white font-extrabold">RD</div>
+        <div>
+          <h1 class="text-lg sm:text-xl font-extrabold text-gray-900 leading-5">Sistema Escuela</h1>
+          <p class="text-xs text-gray-500 -mt-0.5">Interfaz principal · módulos independientes</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-2">
+        <button id="btnDiag" class="hidden sm:inline-flex px-3 py-2 rounded-lg border text-sm bg-white hover:bg-gray-50">Diagnóstico</button>
+        <button id="btnRefresh" class="px-3 py-2 rounded-lg border text-sm bg-white hover:bg-gray-50">Refrescar módulo</button>
+        <a id="btnOpen" href="#" target="_blank" class="px-3 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700">Abrir en pestaña</a>
+      </div>
+    </div>
+  </header>
+
+  <!-- Layout -->
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 grid grid-cols-1 lg:grid-cols-[260px_minmax(0,1fr)] gap-4">
+    <!-- Sidebar -->
+    <aside class="bg-white rounded-2xl border border-gray-200 p-3 h-fit lg:sticky lg:top-20">
+      <div class="px-3 py-2">
+        <p class="text-xs uppercase tracking-wide text-gray-500">Módulos</p>
+      </div>
+      <nav class="space-y-1" id="nav">
+        <button class="nav-btn w-full text-left px-4 py-3 rounded-xl hover:bg-gray-50" data-file="estudiantes.html">
+          <div class="font-semibold">Estudiantes</div>
+          <div class="text-xs text-gray-500">Registro y lista (standalone)</div>
+        </button>
+        <button class="nav-btn w-full text-left px-4 py-3 rounded-xl hover:bg-gray-50" data-file="pagos.html">
+          <div class="font-semibold">Pagos</div>
+          <div class="text-xs text-gray-500">Recibos, mensualidades, eventos</div>
+        </button>
+        <button class="nav-btn w-full text-left px-4 py-3 rounded-xl hover:bg-gray-50" data-file="gastos.html">
+          <div class="font-semibold">Gastos</div>
+          <div class="text-xs text-gray-500">Registro de egresos</div>
+        </button>
+        <button class="nav-btn w-full text-left px-4 py-3 rounded-xl hover:bg-gray-50" data-file="ReportesFinancieros.html">
+          <div class="font-semibold">Reportes financieros</div>
+          <div class="text-xs text-gray-500">KPI, gráficas y exportación</div>
+        </button>
+      </nav>
+
+      <div class="mt-4 p-3 bg-blue-50 rounded-xl text-sm text-blue-900">
+        <p class="font-semibold">¿Cómo usar?</p>
+        <p>Coloca este <span class="font-mono">index.html</span> junto a <span class="font-mono">estudiantes.html</span>, <span class="font-mono">pagos.html</span>, <span class="font-mono">gastos.html</span> y <span class="font-mono">ReportesFinancieros.html</span>. Haz clic en un módulo para cargarlo.</p>
+      </div>
+    </aside>
+
+    <!-- Viewer -->
+    <section class="bg-white rounded-2xl border border-gray-200 overflow-hidden relative">
+      <div id="loader" class="absolute inset-0 grid place-items-center bg-white/70" hidden>
+        <div class="flex items-center gap-3 text-gray-600"><span class="spin"></span><span class="text-sm">Cargando módulo…</span></div>
+      </div>
+      <iframe id="frame" src="about:blank" class="w-full block" title="Módulo" referrerpolicy="no-referrer"></iframe>
+    </section>
+  </div>
+
+  <!-- Diagnóstico modal -->
+  <div id="diagModal" class="fixed inset-0 bg-black/40 hidden items-center justify-center p-4 z-50">
+    <div class="bg-white rounded-2xl p-6 w-full max-w-xl">
+      <div class="flex items-center justify-between mb-3">
+        <h3 class="text-lg font-bold">Diagnóstico de archivos</h3>
+        <button id="diagClose" class="px-3 py-1 rounded-lg bg-gray-100">Cerrar</button>
+      </div>
+      <p class="text-sm text-gray-600 mb-3">Comprobación rápida (funciona mejor en un servidor HTTP como Vercel; en <em>file://</em> el navegador puede bloquear lecturas).</p>
+      <ul id="diagList" class="space-y-2 text-sm"></ul>
+    </div>
+  </div>
+
+  <script>
+    const MODS = [
+      { key:'estudiantes', file:'estudiantes.html', title:'Estudiantes' },
+      { key:'pagos', file:'pagos.html', title:'Pagos' },
+      { key:'gastos', file:'gastos.html', title:'Gastos' },
+      { key:'reportes', file:'ReportesFinancieros.html', title:'Reportes financieros' },
+    ];
+
+    const frame = document.getElementById('frame');
+    const loader = document.getElementById('loader');
+    const nav = document.getElementById('nav');
+    const btnOpen = document.getElementById('btnOpen');
+    const btnRefresh = document.getElementById('btnRefresh');
+    const btnDiag = document.getElementById('btnDiag');
+
+    function setActive(file){
+      // Update aria-current
+      document.querySelectorAll('.nav-btn').forEach(b=>{
+        const on = b.dataset.file===file; b.setAttribute('aria-current', on?'page':'false');
+      });
+      // Load iframe
+      loader.hidden = false;
+      frame.src = file + (file.includes('?') ? '&' : '?') + 'embedded=1';
+      btnOpen.href = file;
+      localStorage.setItem('se.last', file);
+      document.title = 'Interfaz Principal — ' + (MODS.find(m=>m.file===file)?.title || 'Sistema Escuela');
+    }
+
+    function fitIframe(){
+      const top = document.getElementById('topbar').offsetHeight || 64;
+      // 24px padding vertical total (py-4) + borders
+      const h = Math.max(320, window.innerHeight - top - 24 - 24);
+      frame.style.height = h + 'px';
+    }
+
+    // Nav clicks
+    nav.addEventListener('click', (e)=>{
+      const btn = e.target.closest('.nav-btn'); if(!btn) return;
+      setActive(btn.dataset.file);
+    });
+
+    // Iframe loading
+    frame.addEventListener('load', ()=>{ loader.hidden = true; });
+
+    // Buttons
+    btnRefresh.addEventListener('click', ()=>{ if(frame.src) { loader.hidden=false; frame.contentWindow?.location?.reload(); } });
+
+    // Diagnostics (optional)
+    if(btnDiag){
+      btnDiag.addEventListener('click', runDiag);
+      document.getElementById('diagClose').addEventListener('click', ()=>{
+        document.getElementById('diagModal').classList.add('hidden');
+      });
+    }
+
+    async function runDiag(){
+      const list = document.getElementById('diagList');
+      list.innerHTML = '';
+      document.getElementById('diagModal').classList.remove('hidden');
+      for(const m of MODS){
+        const li = document.createElement('li');
+        li.className = 'px-3 py-2 rounded-lg border';
+        li.textContent = `Comprobando ${m.file}…`;
+        list.appendChild(li);
+        try {
+          const res = await fetch(m.file, { method:'GET', cache:'no-store' });
+          if(res.ok){ li.textContent = `✓ ${m.file} accesible (${res.status})`; li.classList.add('border-emerald-200','bg-emerald-50'); }
+          else { li.textContent = `✕ ${m.file} respondió ${res.status}`; li.classList.add('border-rose-200','bg-rose-50'); }
+        } catch(err){
+          li.textContent = `✕ ${m.file} no accesible (${err.message||'bloqueado por el navegador'})`;
+          li.classList.add('border-rose-200','bg-rose-50');
+        }
+      }
+    }
+
+    // Init
+    window.addEventListener('resize', fitIframe);
+    window.addEventListener('DOMContentLoaded', ()=>{
+      fitIframe();
+      const last = localStorage.getItem('se.last');
+      const initial = last && MODS.some(m=>m.file===last) ? last : MODS[0].file;
+      setActive(initial);
+    });
+  </script>
+</body>
+</html>

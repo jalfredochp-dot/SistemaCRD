@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Registro de Gastos – Módulo Standalone</title>
+  <style>
+    :root { --accent:#d32f2f; --accent-600:#b71c1c; --bg:#f7f7fb; --ink:#1f2937; --muted:#6b7280; }
+    *{box-sizing:border-box}
+    body{margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,sans-serif; background:var(--bg); color:var(--ink)}
+    .container{max-width:1100px; margin:32px auto; padding:0 16px}
+    header h1{margin:0; font-size:2rem}
+    header p{color:var(--muted); margin:.25rem 0 0}
+    .card{background:#fff; border-radius:14px; box-shadow:0 6px 24px rgba(0,0,0,.08); padding:20px}
+    .grid{display:grid; gap:16px}
+    .grid.cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}
+    .grid.cols-3{grid-template-columns:repeat(3,minmax(0,1fr))}
+    .grid.cols-4{grid-template-columns:repeat(4,minmax(0,1fr))}
+    @media (max-width:900px){ .grid.cols-2,.grid.cols-3,.grid.cols-4{grid-template-columns:1fr} }
+    label{display:block; font-size:.9rem; color:#374151; margin-bottom:4px}
+    input,select,textarea{width:100%; padding:10px 12px; border:1px solid #e5e7eb; border-radius:10px; outline:none; background:#fff; font-size:0.95rem}
+    input:focus,select:focus,textarea:focus{border-color:#cbd5e1; box-shadow:0 0 0 3px rgba(211,47,47,.08)}
+    textarea{resize:vertical}
+    .row{display:flex; gap:12px; flex-wrap:wrap; align-items:center}
+    .btn{appearance:none; border:0; border-radius:10px; padding:10px 14px; font-weight:600; cursor:pointer}
+    .btn.primary{background:var(--accent); color:#fff}
+    .btn.primary:hover{background:var(--accent-600)}
+    .btn.ghost{background:#fff; border:1px solid #e5e7eb}
+    .btn.warn{background:#ef4444; color:#fff}
+    .btn.small{padding:6px 10px; font-weight:600}
+    h2{margin:0 0 8px}
+    .section-title{display:flex; justify-content:space-between; align-items:center; margin:24px 0 12px}
+    .stats{display:flex; gap:16px; flex-wrap:wrap; color:#111827}
+    .stat{background:#fff; border-radius:12px; padding:12px 14px; box-shadow:0 4px 16px rgba(0,0,0,.06)}
+    .muted{color:var(--muted)}
+    table{width:100%; border-collapse:separate; border-spacing:0 8px}
+    thead th{font-size:.8rem; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); text-align:left}
+    tbody tr{background:#fff; box-shadow:0 4px 12px rgba(0,0,0,.05)}
+    tbody td{padding:10px 12px; border-top:1px solid #f3f4f6; border-bottom:1px solid #f3f4f6}
+    tbody td:first-child{border-left:1px solid #f3f4f6; border-radius:10px 0 0 10px}
+    tbody td:last-child{border-right:1px solid #f3f4f6; border-radius:0 10px 10px 0}
+    .actions{display:flex; gap:8px}
+    .pill{display:inline-flex; align-items:center; gap:6px; padding:4px 8px; border-radius:999px; font-size:.8rem; border:1px solid #e5e7eb; background:#fafafa}
+    .filters .group{display:grid; gap:8px}
+    .divider{height:1px; background:#e5e7eb; margin:16px 0}
+    .right{margin-left:auto}
+    .hidden{display:none !important}
+    .link{color:#2563eb; text-decoration:none}
+    .link:hover{text-decoration:underline}
+    .tag{font-size:.75rem; color:#065f46; background:#ecfdf5; border:1px solid #a7f3d0; padding:2px 8px; border-radius:999px}
+    .badge{font-size:.75rem; color:#1d4ed8; background:#eff6ff; border:1px solid #bfdbfe; padding:2px 8px; border-radius:999px}
+    .modal-backdrop{position:fixed; inset:0; background:rgba(0,0,0,.45); display:flex; align-items:center; justify-content:center; padding:16px}
+    .modal{background:#fff; max-width:650px; width:100%; border-radius:14px; padding:18px; box-shadow:0 14px 60px rgba(0,0,0,.25)}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header class="section-title">
+      <div>
+        <h1>Registro de Gastos</h1>
+        <p class="muted">Colegio – módulo 100% en HTML con almacenamiento local (puedes pegarlo en tu proyecto).</p>
+      </div>
+      </header>
+
+    <!-- FORM -->
+    <section class="card" aria-labelledby="titulo-form">
+      <h2 id="titulo-form">Nuevo gasto</h2>
+
+      <form id="gastoForm" autocomplete="off">
+        <div class="grid cols-3">
+          <div>
+            <label for="date">Fecha</label>
+            <input type="date" id="date" name="date" required />
+          </div>
+          <div>
+            <label for="paymentMethod">Forma de pago</label>
+            <select id="paymentMethod" name="paymentMethod" required>
+              <option value="">Seleccione…</option>
+              <option>Efectivo</option>
+              <option>BBVA</option>
+              <option>Banorte</option>
+              <option>Tarjeta</option>
+              <option>Transferencia</option>
+            </select>
+          </div>
+          <div>
+            <label for="owner">Responsable</label>
+            <input type="text" id="owner" name="owner" placeholder="Quién realizó el gasto" />
+          </div>
+
+          <div class="grid" style="grid-column:1/-1">
+            <label for="concept">Concepto</label>
+            <input type="text" id="concept" name="concept" $1 list="conceptos" />
+            <datalist id="conceptos">
+              <option value="Cafetería"></option>
+            </datalist>
+          </div>
+
+          <div>
+            <label for="category">Categoría</label>
+            <select id="category" name="category" required>
+              <option value="">Seleccione…</option>
+              <option>Suministros de Oficina</option>
+              <option>Material Didáctico</option>
+              <option>Cafetería</option>
+              <option>Mantenimiento</option>
+              <option>Servicios Públicos</option>
+              <option>Marketing y Publicidad</option>
+              <option>Transporte y Logística</option>
+              <option>Honorarios</option>
+              <option>Tecnología</option>
+              <option>Otro</option>
+            </select>
+          </div>
+          <div>
+            <label for="costCenter">Centro de costo</label>
+            <select id="costCenter" name="costCenter">
+              <option value="">General</option>
+              <option>Preescolar</option>
+              <option>Primaria</option>
+              <option>Secundaria</option>
+              <option>Administración</option>
+            </select>
+          </div>
+          <div>
+            <label for="provider">Proveedor</label>
+            <input type="text" id="provider" name="provider" placeholder="Ej. Office Depot" />
+          </div>
+
+          <div>
+            <label for="rfc">RFC (Proveedor)</label>
+            <input type="text" id="rfc" name="rfc" placeholder="RFC" style="text-transform:uppercase" />
+          </div>
+          <div>
+            <label for="invoice">Folio/Factura</label>
+            <input type="text" id="invoice" name="invoice" placeholder="Folio/ticket" />
+          </div>
+          <div>
+            <label for="evidenceUrl">URL Comprobante</label>
+            <input type="url" id="evidenceUrl" name="evidenceUrl" placeholder="Drive/Foto/Factura" />
+          </div>
+
+          <!-- Importe -->
+          <div>
+            <label for="baseAmount">Base (sin IVA)</label>
+            <input type="number" id="baseAmount" name="baseAmount" min="0" step="0.01" placeholder="0.00" />
+          </div>
+          <div>
+            <label for="ivaRate">IVA %</label>
+            <select id="ivaRate" name="ivaRate">
+              <option value="0">0%</option>
+              <option value="8">8%</option>
+              <option value="16" selected>16%</option>
+            </select>
+          </div>
+          <div>
+            <label for="ivaAmount">IVA (calculado)</label>
+            <input type="number" id="ivaAmount" name="ivaAmount" readonly />
+          </div>
+          <div>
+            <label for="amount">Total</label>
+            <input type="number" id="amount" name="amount" min="0" step="0.01" placeholder="0.00" required />
+          </div>
+          <div class="grid" style="grid-column:1/-1">
+            <label for="notes">Notas</label>
+            <textarea id="notes" name="notes" rows="2" placeholder="Detalles adicionales…"></textarea>
+          </div>
+        </div>
+
+        <div class="row" style="margin-top:14px; justify-content:flex-end">
+          <button type="reset" class="btn ghost">Limpiar</button>
+          <button type="submit" class="btn primary">Guardar gasto</button>
+        </div>
+      </form>
+    </section>
+  </div>
+  <div id="toast" class="hidden" style="position:fixed;right:16px;bottom:16px;background:#111827;color:#fff;padding:12px 14px;border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.25)">Gasto guardado ✓</div>
+
+  <script>
+    // --- Utilidades básicas ---
+    const $$ = s => document.querySelector(s);
+    const todayStr = () => new Date().toISOString().slice(0,10);
+
+    // --- Estado en localStorage ---
+    const LS_KEY = 'gastosData';
+    const load = () => { try { return JSON.parse(localStorage.getItem(LS_KEY)) || []; } catch { return []; } };
+    const persist = (arr) => localStorage.setItem(LS_KEY, JSON.stringify(arr));
+
+    function initForm(){
+      $$('#date').value = todayStr();
+
+      const base = $$('#baseAmount');
+      const rate = $$('#ivaRate');
+      const iva = $$('#ivaAmount');
+      const total = $$('#amount');
+
+      function recalc(){
+        const b = parseFloat(base.value)||0; const r = parseFloat(rate.value)||0;
+        const ivaVal = +(b*r/100).toFixed(2);
+        iva.value = ivaVal.toFixed(2);
+        if(!total.dataset.userEdited){ total.value = (b+ivaVal).toFixed(2); }
+      }
+      base.addEventListener('input', recalc);
+      rate.addEventListener('input', recalc);
+      total.addEventListener('input', ()=> total.dataset.userEdited = '1');
+      recalc();
+
+      $$('#gastoForm').addEventListener('submit', (e)=>{
+        e.preventDefault();
+        const form = new FormData(e.target);
+        const item = Object.fromEntries(form.entries());
+        // Normaliza
+        item.baseAmount = +(+item.baseAmount||0).toFixed(2);
+        item.ivaRate = +(item.ivaRate||0);
+        item.ivaAmount = +(+item.ivaAmount||0).toFixed(2);
+        item.amount = +(+item.amount||0).toFixed(2);
+        item.id = crypto.randomUUID();
+
+        const current = load();
+        current.unshift(item);
+        persist(current);
+
+        e.target.reset();
+        $$('#date').value = todayStr();
+        showToast('Gasto guardado ✓');
+      });
+    }
+
+    function showToast(msg){
+      const t = $$('#toast');
+      t.textContent = msg; t.classList.remove('hidden');
+      clearTimeout(window.__t);
+      window.__t = setTimeout(()=> t.classList.add('hidden'), 1800);
+    }
+
+    window.addEventListener('DOMContentLoaded', initForm);
+  </script>
+</body>
+</html>
